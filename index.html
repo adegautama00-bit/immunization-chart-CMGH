@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Immunization Timeliness — Preterm Infants CMGH</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap');
+
+:root {
+  --on-time: #059669;
+  --delayed: #D97706;
+  --skipped: #DC2626;
+  --schedule: #2563EB;
+  --median: #1E1B4B;
+  --iqr: #94A3B8;
+  --window: rgba(5,150,105,0.06);
+  --bg: #F8F7F4;
+  --surface: #FFFFFF;
+  --border: #E2E8F0;
+  --text: #0F172A;
+  --muted: #64748B;
+  --dark: #0F172A;
+  --row-alt: #F8FAFC;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  font-family: 'IBM Plex Sans', sans-serif;
+  color: var(--text);
+  padding: 2rem;
+}
+
+/* HEADER */
+.header {
+  margin-bottom: 1.75rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 2.5px solid var(--dark);
+}
+
+.eyebrow {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 0.5rem;
+}
+
+h1 {
+  font-family: 'Playfair Display', serif;
+  font-size: clamp(1.4rem, 2.5vw, 2rem);
+  font-weight: 400;
+  color: var(--dark);
+  line-height: 1.2;
+  margin-bottom: 0.75rem;
+}
+
+h1 em { font-style: italic; color: var(--on-time); }
+
+.legend {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.7rem;
+  color: var(--muted);
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+.ld { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+.lsq { width:9px; height:9px; border-radius:1px; transform:rotate(45deg); flex-shrink:0; }
+.lline { width:18px; height:2px; border-radius:1px; flex-shrink:0; }
+.ldiamond {
+  width:10px; height:10px; border-radius:1px;
+  transform:rotate(45deg); flex-shrink:0;
+  border: 2px solid var(--median);
+  background: white;
+}
+.liqr { width:18px; height:3px; background:var(--iqr); border-radius:1px; flex-shrink:0; }
+
+/* CHART */
+.chart-wrap {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+
+.col-heads {
+  display: grid;
+  grid-template-columns: 110px 1fr 175px;
+  background: var(--dark);
+  padding: 0.65rem 1.25rem;
+  gap: 1rem;
+  align-items: center;
+}
+
+.ch {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.58rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: rgba(255,255,255,0.55);
+}
+
+.ch-pills {
+  display: flex;
+  gap: 0.25rem;
+  justify-content: flex-end;
+}
+
+.ch-pill {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.55rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 3px;
+  min-width: 44px;
+  text-align: center;
+}
+
+/* X AXIS */
+.xaxis-row {
+  display: grid;
+  grid-template-columns: 110px 1fr 175px;
+  gap: 1rem;
+  padding: 0.3rem 1.25rem 0.2rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.xaxis-track { position: relative; height: 18px; }
+
+.xtick {
+  position: absolute;
+  transform: translateX(-50%);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.58rem;
+  color: var(--muted);
+  top: 3px;
+}
+
+.xtick-line {
+  position: absolute;
+  top: 0; height: 100%;
+  width: 1px;
+  background: var(--border);
+  transform: translateX(-50%);
+}
+
+/* ROWS */
+.rows-wrap {
+  max-height: 72vh;
+  overflow-y: auto;
+}
+
+.rows-wrap::-webkit-scrollbar { width: 4px; }
+.rows-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.vrow {
+  display: grid;
+  grid-template-columns: 110px 1fr 175px;
+  gap: 1rem;
+  padding: 0 1.25rem;
+  align-items: center;
+  min-height: 34px;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.1s;
+  position: relative;
+}
+
+.vrow:nth-child(even) { background: var(--row-alt); }
+.vrow:hover { background: #EFF6FF; }
+
+/* group separator */
+.vrow.group-start {
+  border-top: 2px solid var(--border);
+  margin-top: 2px;
+}
+
+.vlabel {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.68rem;
+  color: var(--dark);
+  font-weight: 500;
+  text-align: right;
+  padding: 0.35rem 0;
+  line-height: 1.2;
+}
+
+.vgroup {
+  display: block;
+  font-size: 0.52rem;
+  color: var(--muted);
+  font-weight: 400;
+  margin-top: 1px;
+}
+
+/* TRACK */
+.vtrack {
+  position: relative;
+  height: 30px;
+}
+
+/* window */
+.tol-win {
+  position: absolute;
+  top: 0; bottom: 0;
+  background: var(--window);
+  border-right: 1px dashed rgba(5,150,105,0.25);
+  pointer-events: none;
+}
+
+/* skipped zone */
+.skip-zone {
+  position: absolute;
+  top: 0; bottom: 0;
+  left: 84%; right: 0;
+  background: rgba(220,38,38,0.03);
+  border-left: 1px dashed rgba(220,38,38,0.2);
+  pointer-events: none;
+}
+
+.skip-zone-label {
+  position: absolute;
+  top: -13px; left: 85%;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.46rem;
+  color: rgba(220,38,38,0.45);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* schedule line */
+.sched-ln {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 2px;
+  background: var(--schedule);
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* IQR line */
+.iqr-line {
+  position: absolute;
+  height: 3px;
+  background: var(--iqr);
+  border-radius: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  z-index: 20;
+}
+
+/* median diamond */
+.median-diamond {
+  position: absolute;
+  width: 11px; height: 11px;
+  border-radius: 2px;
+  background: white;
+  border: 2.5px solid var(--median);
+  transform: translate(-50%, -50%) rotate(45deg);
+  top: 50%;
+  z-index: 25;
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+
+.median-diamond:hover {
+  transform: translate(-50%, -50%) rotate(45deg) scale(1.4);
+  border-color: var(--schedule);
+}
+
+/* dots */
+.dot {
+  position: absolute;
+  width: 4px; height: 4px;
+  border-radius: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+  transition: opacity 0.1s, transform 0.1s;
+  z-index: 2;
+}
+
+.dot:hover {
+  opacity: 1 !important;
+  transform: translate(-50%, -50%) scale(1.8);
+  z-index: 5;
+}
+
+.dot-skip {
+  border-radius: 2px;
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.dot-skip:hover {
+  transform: translate(-50%, -50%) rotate(45deg) scale(1.8);
+}
+
+/* PILLS */
+.tl-pills {
+  display: flex;
+  gap: 0.2rem;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.pill {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.58rem;
+  padding: 0.18rem 0.35rem;
+  border-radius: 3px;
+  min-width: 44px;
+  text-align: center;
+  font-weight: 500;
+}
+
+.p-ot { background:rgba(5,150,105,0.1); color:#059669; }
+.p-dl { background:rgba(217,119,6,0.1); color:#D97706; }
+.p-sk { background:rgba(220,38,38,0.1); color:#DC2626; }
+
+.note {
+  font-size: 0.65rem;
+  color: var(--muted);
+  font-family: 'IBM Plex Mono', monospace;
+  padding: 0.75rem 1.25rem;
+  border-top: 1px solid var(--border);
+  line-height: 1.6;
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="eyebrow">Cipto Mangunkusumo General Hospital · n=55 Premature Neonates · 2022–2023</div>
+  <h1>Immunization Timeliness Against <em>Kemenkes Schedule</em><br>with Median Age at Administration</h1>
+  <div class="legend">
+    <div class="li"><div class="ld" style="background:var(--on-time)"></div>On Time</div>
+    <div class="li"><div class="ld" style="background:var(--delayed)"></div>Delayed</div>
+    <div class="li"><div class="lsq" style="background:var(--skipped);opacity:0.5"></div>Skipped</div>
+    <div class="li"><div class="lline" style="background:var(--schedule)"></div>Kemenkes schedule</div>
+    <div class="li"><div class="liqr"></div>Min–Max range</div>
+    <div class="li"><div class="ldiamond"></div>Median age</div>
+  </div>
+</div>
+
+<div class="chart-wrap">
+  <div class="col-heads">
+    <div class="ch">Vaccine</div>
+    <div class="ch">Age at administration (months) →</div>
+    <div class="ch-pills">
+      <div class="ch-pill" style="background:rgba(5,150,105,0.25);color:#6EE7B7;">On Time</div>
+      <div class="ch-pill" style="background:rgba(217,119,6,0.25);color:#FCD34D;">Delayed</div>
+      <div class="ch-pill" style="background:rgba(220,38,38,0.25);color:#FCA5A5;">Skipped</div>
+    </div>
+  </div>
+
+  <div class="xaxis-row">
+    <div></div>
+    <div class="xaxis-track" id="xAxis"></div>
+    <div></div>
+  </div>
+
+  <div class="rows-wrap" id="rowsWrap"></div>
+
+  <div class="note">
+    ◆ Median age at vaccination (dark diamond) with min–max range (grey bar). Blue line = Kemenkes 2022–2023 scheduled age. Green zone = tolerance window (7 days for Hep-B-0; 28 days for all others). Red zone = not received. Individual dots shown behind summary markers. Hover for details.
+  </div>
+</div>
+
+<script>
+const N = 55;
+const MAX_MO = 28;
+const TICKS = [0,1,2,3,4,5,6,9,12,15,18,21,24,27];
+
+async function loadCSV() {
+
+  const response = await fetch('patient_data.csv');
+
+  const text = await response.text();
+
+  const rows = text.trim().split('\n');
+
+  return rows.slice(1).map(row => {
+
+    const values = row.split(';');
+
+  return {
+ID : values[0],  
+  vaccine: values[1].trim(),
+age: parseFloat(values[2].replace(',','.')),
+  status: values[3]
+};
+
+  });
+}
+
+loadCSV().then(patientData => {
+
+  const grouped = {};
+
+  patientData.forEach(patient => {
+
+    if (!grouped[patient.vaccine]) {
+      grouped[patient.vaccine] = [];
+    }
+
+    grouped[patient.vaccine].push(patient);
+
+  });
+
+  console.log(grouped);
+
+
+// ── REAL DATA FROM YOUR TABLE ─────────────────────────────────────────
+// medianMo / minMo / maxMo extracted from your "Median (min-max)" column
+// scheduledMo = Kemenkes scheduled age in months
+// toleranceDays = 7 for HB0, 28 for all others
+const vaccines = [
+  // name,           group,       schedMo, tolDays, onT,del,skp, medMo,minMo,maxMo
+  ["HB0",       "Hep B",     0,       7,       12,  38,  5,  0.69, 0,    3.52],
+  ["OPV1",         "Polio",     1,       28,      39,  14,  2,  1.28, 0.30, 7.95],
+  ["BCG",           "BCG",       1,       28,      37,  16,  2,  1.41, 0.46, 7.95],
+  ["Combo1",       "Hep B",     2,       28,      37,  18,  0,  2.5,  1.4,  9.4 ],
+   ["OPV2",         "Polio",     2,       28,      37,  18,  0,  2.6,  1.4,  9.4 ],
+  ["PCV1",         "PCV",       2,       28,      22,  19, 14,  2.8,  1.4, 18.6 ],
+  ["Rovi1",   "Rotavirus", 2,       28,       1,   6, 48,  3.8,  2.6,  3.9 ],
+  ["Combo2",       "Hep B",     3,       28,      31,  23,  1,  3.7,  2.5, 10.5 ],
+   ["OPV3",         "Polio",     3,       28,      31,  23,  1,  3.8,  2.5, 10.5 ],
+  ["PCV2",         "PCV",       3,       28,      10,  26, 19,  4.45, 2.5, 22.9 ],
+  ["Rovi2",   "Rotavirus", 3,       28,       0,   7, 48,  5.35, 5.35,5.35 ],
+  ["Combo3",       "Hep B",     4,       28,      26,  27,  2,  5.0,  3.4, 12.3 ],
+   ["OPV4",         "Polio",     4,       28,      25,  28,  2,  5.0,  3.4, 18.9 ],
+  ["IPV1",         "Polio",     4,       28,      24,  29,  2,  5.0,  3.4, 14.0 ],
+  ["MR1",          "MR",        9,       28,      25,  28,  2,  10.0, 9.0, 14.7 ],
+  ["IPV2",         "Polio",     9,       28,      14,  22, 19,  10.7, 9.2, 17.9 ],
+  ["JE",            "JE",        10,      28,       0,   4, 51,  13.97,13.97,13.97],
+  ["PCV3",         "PCV",       12,      28,      14,  13, 28,  12.7, 9.2, 24.8 ],
+  ["MR2",          "MR",        18,      28,      23,  24,  8,  19.1, 15.0,25.5 ],
+  ["ComboBooster",   "Hep B",     18,      28,      19,  26, 10,  19.5, 17.9,25.5 ],
+   ["OPVBooster",     "Polio",     18,      28,      19,  26, 10,  19.5, 17.9,25.5 ],
+];
+
+function pct(mo) { return Math.min((mo / MAX_MO) * 100, 100); }
+
+// ── X AXIS ────────────────────────────────────────────────────────────
+const xTrack = document.getElementById('xAxis');
+TICKS.forEach(t => {
+  const p = pct(t);
+  const line = document.createElement('div');
+  line.className = 'xtick-line';
+  line.style.left = p + '%';
+  xTrack.appendChild(line);
+  const tick = document.createElement('div');
+  tick.className = 'xtick';
+  tick.style.left = p + '%';
+  tick.textContent = t === 0 ? '0' : t + 'mo';
+  xTrack.appendChild(tick);
+});
+
+// ── ROWS ──────────────────────────────────────────────────────────────
+const wrap = document.getElementById('rowsWrap');
+let lastGroup = '';
+
+
+vaccines.forEach(([name, group, schedMo, tolDays, onT, del, skp, medMo, minMo, maxMo]) => {
+  const patients = grouped[name] || [];
+const pOT = (onT/N*100).toFixed(1);
+  const pDL = (del/N*100).toFixed(1);
+  const pSK = (skp/N*100).toFixed(1);
+
+  const tolMo = tolDays / 30.4375;
+  const schedP = pct(schedMo);
+  const tolEndP = pct(schedMo + tolMo);
+  const medP = pct(medMo);
+  const minP = pct(minMo);
+  const maxP = Math.min(pct(maxMo), 82);
+  const received = onT + del;
+
+  const row = document.createElement('div');
+  row.className = 'vrow' + (group !== lastGroup ? ' group-start' : '');
+  lastGroup = group;
+
+  // label
+  const lbl = document.createElement('div');
+  lbl.className = 'vlabel';
+  lbl.innerHTML = `${name}<span class="vgroup">${group}</span>`;
+
+  // track
+  const track = document.createElement('div');
+  track.className = 'vtrack';
+
+  // tolerance window
+  const win = document.createElement('div');
+  win.className = 'tol-win';
+  win.style.left = schedP + '%';
+  win.style.width = (tolEndP - schedP) + '%';
+  track.appendChild(win);
+
+  // skipped zone
+  if (skp > 0) {
+    const sz = document.createElement('div');
+    sz.className = 'skip-zone';
+    track.appendChild(sz);
+    const szl = document.createElement('div');
+    szl.className = 'skip-zone-label';
+    szl.textContent = 'not received';
+    track.appendChild(szl);
+  }
+
+  // schedule line
+  const sl = document.createElement('div');
+  sl.className = 'sched-ln';
+  sl.style.left = schedP + '%';
+  sl.title = `Scheduled: ${schedMo} months`;
+  track.appendChild(sl);
+
+// on-time + delayed dots
+patients
+  .filter(patient =>
+    patient.status.toLowerCase().trim() !== 'skipped'
+  )
+  .forEach(patient => {
+
+    const d = document.createElement('div');
+
+    const p = pct(patient.age);
+
+    const jitter = (Math.random() - 0.5) * 10;
+
+    d.className = 'dot';
+
+    d.style.cssText = `
+  left:${p}%;
+  top:calc(50% + ${jitter}px);
+  width:8px;
+  height:8px;
+  border-radius:50%;
+  position:absolute;
+  z-index:5;
+  background:${
+    patient.status.toLowerCase().trim() === 'ya'
+      ? 'lime'
+      : 'yellow'
+  };
+`;
+
+d.style.opacity =
+  patient.status.toLowerCase().trim() === 'ya'
+    ? '0.30'
+    : '0.30';
+
+track.appendChild(d);
+
+});
+  // skipped dots
+  for (let i = 0; i < skp; i++) {
+    const jitter = (Math.random() - 0.5) * 8;
+    const p = 85 + Math.random() * 12;
+    const d = document.createElement('div');
+    d.className = 'dot dot-skip';
+    d.style.cssText = `left:${p}%;top:calc(50% + ${jitter}px);background:var(--skipped);opacity:0.3;width:5px;height:5px;`;
+    d.title = `${name} — Skipped`;
+    track.appendChild(d);
+  }
+
+  // IQR / min-max line (only if received > 0)
+  if (received > 0 && maxMo > minMo) {
+    const iqr = document.createElement('div');
+    iqr.className = 'iqr-line';
+    iqr.style.left = minP + '%';
+    iqr.style.width = (maxP - minP) + '%';
+    iqr.title = `Range: ${minMo}–${maxMo} months`;
+    track.appendChild(iqr);
+  }
+
+  // median diamond (only if received > 0)
+  if (received > 0) {
+    const med = document.createElement('div');
+    med.className = 'median-diamond';
+    med.style.left = medP + '%';
+    med.title = `${name} — Median: ${medMo} months`;
+    track.appendChild(med);
+  }
+
+  // pills
+  const pills = document.createElement('div');
+  pills.className = 'tl-pills';
+  pills.innerHTML = `
+    <div class="pill p-ot">${pOT}%</div>
+    <div class="pill p-dl">${pDL}%</div>
+    <div class="pill p-sk">${pSK}%</div>`;
+
+  row.appendChild(lbl);
+  row.appendChild(track);
+  row.appendChild(pills);
+  wrap.appendChild(row);
+
+});
+});
+</script>
+</body>
+</html>
