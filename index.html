@@ -594,6 +594,13 @@ track.appendChild(d);
     med.className = 'median-diamond';
     med.style.left = medP + '%';
     med.title = `${name} — Median: ${medMo} months`;
+
+med.addEventListener('click', () => {
+  alert(
+    `${name}\n\nMedian: ${medMo} months\nRange: ${minMo}–${maxMo} months`
+  );
+});
+
     track.appendChild(med);
   }
 
